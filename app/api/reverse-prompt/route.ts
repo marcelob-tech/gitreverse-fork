@@ -1,4 +1,3 @@
-import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 import { getFileTree, getReadme, getRepoMeta } from "@/lib/github-client";
@@ -43,12 +42,6 @@ function resolveLlmTarget(): LlmTarget | { error: string } {
 }
 
 const inFlight = new Map<string, Promise<{ prompt: string } | NextResponse>>();
-
-function inflightDedupeSuffix(serverKey: string, userOverride?: string): string {
-  if (!userOverride) return "srv";
-  const base = `${serverKey}|${userOverride}`;
-  return `u:${createHash("sha256").update(base).digest("hex").slice(0, 16)}`;
-}
 
 function buildUserMessage(
   owner: string,
@@ -150,7 +143,7 @@ function extractMessage(data: unknown): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { repoUrl?: string; apiKey?: string };
+  let body: { repoUrl?: string };
   try {
     body = await request.json();
   } catch {
@@ -183,13 +176,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: llm.error }, { status: 500 });
   }
 
-  const userKey =
-    typeof body.apiKey === "string" ? body.apiKey.trim() : "";
-  const effectiveLlm: LlmTarget = userKey
-    ? { ...llm, apiKey: userKey }
-    : llm;
-
-  const key = `${owner}/${repo}:${inflightDedupeSuffix(llm.apiKey, userKey || undefined)}`;
+  const key = `${owner}/${repo}`;
   const existing = inFlight.get(key);
   if (existing) {
     const out = await existing;
@@ -267,10 +254,10 @@ export async function POST(request: NextRequest) {
     );
 
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${effectiveLlm.apiKey}`,
+      Authorization: `Bearer ${llm.apiKey}`,
       "Content-Type": "application/json",
     };
-    if (effectiveLlm.provider === "openrouter") {
+    if (llm.provider === "openrouter") {
       const referer = process.env.OPENROUTER_HTTP_REFERER?.trim();
       if (referer) headers["HTTP-Referer"] = referer;
       const title = process.env.OPENROUTER_APP_TITLE?.trim();
@@ -279,11 +266,11 @@ export async function POST(request: NextRequest) {
 
     let res: Response;
     try {
-      res = await fetch(effectiveLlm.url, {
+      res = await fetch(llm.url, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          model: effectiveLlm.model,
+          model: llm.model,
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             { role: "user", content: userContent },
@@ -292,7 +279,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (e) {
       const label =
-        effectiveLlm.provider === "openrouter"
+        llm.provider === "openrouter"
           ? "OpenRouter"
           : "Google AI Studio";
       const message =
@@ -308,7 +295,7 @@ export async function POST(request: NextRequest) {
       data = await res.json();
     } catch {
       const label =
-        effectiveLlm.provider === "openrouter"
+        llm.provider === "openrouter"
           ? "OpenRouter"
           : "Google AI Studio";
       return NextResponse.json(
@@ -319,7 +306,7 @@ export async function POST(request: NextRequest) {
 
     if (!res.ok) {
       const label =
-        effectiveLlm.provider === "openrouter"
+        llm.provider === "openrouter"
           ? "OpenRouter"
           : "Google AI Studio";
       const msg =
@@ -335,18 +322,9 @@ export async function POST(request: NextRequest) {
         if (stalePrompt) {
           return { prompt: stalePrompt };
         }
-        if (!userKey) {
-          return NextResponse.json(
-            {
-              error: "llm_credits_exhausted",
-              provider: effectiveLlm.provider,
-            },
-            { status: 402 }
-          );
-        }
         return NextResponse.json(
-          { error: "llm_credits_exhausted_user_key" },
-          { status: 402 }
+          { error: "Service is currently over capacity. Try again later." },
+          { status: 429 }
         );
       }
 
@@ -356,13 +334,9 @@ export async function POST(request: NextRequest) {
         lower.includes("unauthorized") ||
         lower.includes("invalid api key");
       const authHint =
-        effectiveLlm.provider === "openrouter"
-          ? userKey
-            ? "OpenRouter rejected this API key."
-            : "OpenRouter authentication failed. Check OPENROUTER_API_KEY in .env.local."
-          : userKey
-            ? "Google AI Studio rejected this API key."
-            : "Google AI Studio authentication failed. Check GOOGLE_GENERATIVE_AI_API_KEY in .env.local.";
+        llm.provider === "openrouter"
+          ? "OpenRouter authentication failed. Check OPENROUTER_API_KEY in .env.local."
+          : "Google AI Studio authentication failed. Check GOOGLE_GENERATIVE_AI_API_KEY in .env.local.";
       return NextResponse.json(
         {
           error: isAuth ? authHint : `Generation failed: ${msg}`,

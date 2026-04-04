@@ -20,11 +20,6 @@ export function ReversePromptHome({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rateLimited, setRateLimited] = useState(false);
-  const [needsByok, setNeedsByok] = useState(false);
-  const [byokProvider, setByokProvider] = useState<"openrouter" | "google" | null>(
-    null
-  );
-  const [byokApiKey, setByokApiKey] = useState("");
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
   const [copied, setCopied] = useState(false);
   const resultsRef = useRef<HTMLDivElement | null>(null);
@@ -36,33 +31,17 @@ export function ReversePromptHome({
     setPrompt("");
     setCopied(false);
     setLoading(true);
-    const trimmedKey = byokApiKey.trim();
     try {
       const res = await fetch("/api/reverse-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          repoUrl: input,
-          ...(trimmedKey ? { apiKey: trimmedKey } : {}),
-        }),
+        body: JSON.stringify({ repoUrl: input }),
       });
       const data = (await res.json()) as {
         prompt?: string;
         error?: string;
-        provider?: "openrouter" | "google";
       };
       if (!res.ok) {
-        if (res.status === 402 && data.error === "llm_credits_exhausted") {
-          setNeedsByok(true);
-          setByokProvider(data.provider ?? null);
-          return;
-        }
-        if (res.status === 402 && data.error === "llm_credits_exhausted_user_key") {
-          setError(
-            "Your API key was accepted but the provider reported no quota or credits left. Try another key or top up your account."
-          );
-          return;
-        }
         if (res.status === 429) {
           setRateLimited(true);
           return;
@@ -71,8 +50,6 @@ export function ReversePromptHome({
         return;
       }
       if (typeof data.prompt === "string") {
-        setNeedsByok(false);
-        setByokProvider(null);
         setPrompt(data.prompt);
         const parsed = parseGitHubRepoInput(input);
         if (parsed && typeof window !== "undefined") {
@@ -90,7 +67,7 @@ export function ReversePromptHome({
     } finally {
       setLoading(false);
     }
-  }, [byokApiKey]);
+  }, []);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -310,7 +287,7 @@ export function ReversePromptHome({
                 ))}
               </div>
 
-              {needsByok || rateLimited ? (
+              {rateLimited ? (
                 <div className="mt-4 rounded-lg border-[3px] border-amber-400 bg-amber-50 p-4" role="alert">
                   <p className="font-semibold text-amber-900">Sorry, we&apos;re a bit overwhelmed right now.</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -325,24 +302,6 @@ export function ReversePromptHome({
                       </svg>
                     </Link>
                   </div>
-                  {needsByok ? (
-                    <div className="mt-4 border-t border-amber-300 pt-4">
-                      <p className="text-sm font-medium text-amber-900">Or use your own API key to skip the queue:</p>
-                      <label className="mt-2 block text-sm text-amber-900">
-                        {byokProvider === "google" ? "Google AI Studio" : "OpenRouter"} API key
-                        <input
-                          type="password"
-                          name="byokApiKey"
-                          autoComplete="off"
-                          value={byokApiKey}
-                          onChange={(e) => setByokApiKey(e.target.value)}
-                          className="mt-1.5 w-full rounded border-[2px] border-amber-600 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none"
-                          placeholder={byokProvider === "google" ? "AIza…" : "sk-or-v1-…"}
-                        />
-                      </label>
-                      <p className="mt-1.5 text-xs text-amber-700">Sent directly to the provider over HTTPS — never stored.</p>
-                    </div>
-                  ) : null}
                 </div>
               ) : error ? (
                 <p className="mt-3 text-sm text-red-600" role="alert">
