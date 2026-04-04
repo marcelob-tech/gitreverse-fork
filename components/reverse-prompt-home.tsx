@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { parseGitHubRepoInput } from "@/lib/parse-github-repo";
 
@@ -123,6 +123,10 @@ export function ReversePromptHome({
     return () => cancelAnimationFrame(id);
   }, [prompt]);
 
+  const reverseEngineeredRepo = useMemo(
+    () => (prompt ? parseGitHubRepoInput(repoUrl) : null),
+    [prompt, repoUrl]
+  );
 
   async function copyPrompt() {
     if (!prompt) return;
@@ -376,19 +380,48 @@ export function ReversePromptHome({
           >
             <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl bg-zinc-900" />
             <section className="relative z-10 rounded-xl border-[3px] border-zinc-900 bg-[#fafafa] p-6">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-zinc-700">
                   Reverse engineered prompt
                 </h2>
-                <div className="group relative">
-                  <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rounded bg-zinc-900" />
-                  <button
-                    type="button"
-                    onClick={copyPrompt}
-                    className="relative z-10 rounded border-[3px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-xs font-medium text-zinc-900 transition-transform group-hover:-translate-x-px group-hover:-translate-y-px"
-                  >
-                    {copied ? "Copied!" : "Copy"}
-                  </button>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  {reverseEngineeredRepo ? (
+                    <a
+                      href={`https://github.com/${encodeURIComponent(reverseEngineeredRepo.owner)}/${encodeURIComponent(reverseEngineeredRepo.repo)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`View ${reverseEngineeredRepo.owner}/${reverseEngineeredRepo.repo} on GitHub`}
+                      className="group/gh relative inline-flex rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
+                    >
+                      <span className="absolute inset-0 translate-x-0.5 translate-y-0.5 rounded bg-zinc-900 transition-transform group-hover/gh:translate-x-px group-hover/gh:translate-y-px" />
+                      <span className="relative z-10 inline-flex items-center gap-1.5 rounded border-[3px] border-zinc-900 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-900 transition-colors group-hover/gh:bg-zinc-50">
+                        <svg
+                          className="h-3.5 w-3.5 shrink-0"
+                          viewBox="0 0 98 96"
+                          xmlns="http://www.w3.org/2000/svg"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            clipRule="evenodd"
+                            d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.096-.08-9.211-13.588 2.963-16.424-5.867-16.424-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.613-10.839-1.22-22.229-5.412-22.229-24.054 0-5.312 1.895-9.718 5.424-13.126-.526-1.324-2.356-6.74.505-14.052 0 0 4.432-1.505 14.5 5.008 4.172-1.095 8.73-1.63 13.168-1.656 4.469.026 8.971.561 13.166 1.656 10.06-6.513 14.48-5.008 14.48-5.008 2.866 7.326 1.052 12.728.53 14.052 3.532 3.408 5.414 7.814 5.414 13.126 0 18.728-11.401 22.813-22.285 23.985 1.772 1.514 3.316 4.539 3.316 9.119 0 6.613-.08 11.898-.08 13.526 0 1.304.878 2.853 3.316 2.364C84.974 89.385 98 70.983 98 49.204 98 22 76.038 0 48.854 0z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                        GitHub
+                      </span>
+                    </a>
+                  ) : null}
+                  <div className="group relative">
+                    <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rounded bg-zinc-900" />
+                    <button
+                      type="button"
+                      onClick={copyPrompt}
+                      className="relative z-10 rounded border-[3px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-xs font-medium text-zinc-900 transition-transform group-hover:-translate-x-px group-hover:-translate-y-px"
+                    >
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
                 </div>
               </div>
               <pre className="max-h-[min(70vh,32rem)] overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-800">
