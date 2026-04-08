@@ -31,4 +31,4 @@ pnpm start
 pnpm lint
 ```
 
-Shoutout to [GitIngest](https://gitingest.com) for inspiration.
+Shout out to [GitIngest](https://gitingest.com) for inspiration.
