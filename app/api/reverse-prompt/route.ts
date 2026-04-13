@@ -81,11 +81,6 @@ function buildUserMessage(
   ].join("\n");
 }
 
-function cacheTtlHours(): number {
-  const n = Number(process.env.CACHE_TTL_HOURS);
-  return Number.isFinite(n) && n > 0 ? n : 24;
-}
-
 /** Maps to client 429 handling → “Browse the library” (same as GitHub/rate limits). */
 function isExhaustedCreditsOrQuotaMessage(msg: string): boolean {
   const lower = msg.toLowerCase();
@@ -187,26 +182,16 @@ export async function POST(request: NextRequest) {
 
   const promise = (async () => {
     const supabase = getSupabase();
-    let stalePrompt: string | null = null;
     if (supabase) {
       try {
-        const ttlHours = cacheTtlHours();
         const { data, error } = await supabase
           .from("prompt_cache")
-          .select("prompt, cached_at")
+          .select("prompt")
           .eq("owner", owner)
           .eq("repo", repo)
           .maybeSingle();
         if (!error && data?.prompt) {
-          if (data.cached_at) {
-            const ageHours =
-              (Date.now() - new Date(data.cached_at).getTime()) / 36e5;
-            if (ageHours < ttlHours) {
-              return { prompt: data.prompt as string };
-            }
-          }
-          // Entry exists but is stale — keep as fallback
-          stalePrompt = data.prompt as string;
+          return { prompt: data.prompt as string };
         }
       } catch {
         // cache miss — continue to GitHub + LLM
@@ -319,9 +304,6 @@ export async function POST(request: NextRequest) {
         isExhaustedCreditsOrQuotaMessage(msg);
 
       if (creditsExhausted) {
-        if (stalePrompt) {
-          return { prompt: stalePrompt };
-        }
         return NextResponse.json(
           { error: "Service is currently over capacity. Try again later." },
           { status: 429 }
