@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import http from "node:http";
 import https from "node:https";
 import { URL } from "node:url";
+import { DEEP_REVERSE_FOCUS, focusFingerprint } from "@/lib/focus-fingerprint";
 import { parseGitHubRepoInput } from "@/lib/parse-github-repo";
 import { getSupabase } from "@/lib/supabase";
 
@@ -20,11 +20,6 @@ function getServiceUrl(): string {
 const ROUTE_TIMEOUT_MS = 900_000;
 
 const inFlight = new Map<string, Promise<NextResponse>>();
-
-/** MD5 hex of UTF-8 focus — must match `md5(focus::text)` in Postgres (see `focus_fingerprint` column). */
-function focusFingerprint(focus: string): string {
-  return createHash("md5").update(focus, "utf8").digest("hex");
-}
 
 function buildInFlightKey(owner: string, repo: string, focus: string): string {
   return `${owner}/${repo}:${focusFingerprint(focus)}`;
@@ -421,7 +416,7 @@ export async function POST(request: NextRequest) {
   }
 
   const trimmedUrl = repoUrl.trim();
-  const focus = isDeep ? "[deep] whole codebase" : customPrompt!.trim();
+  const focus = isDeep ? DEEP_REVERSE_FOCUS : customPrompt!.trim();
   const parsed = parseGitHubRepoInput(trimmedUrl);
   const parsedForCache = parsed
     ? { owner: parsed.owner, repo: parsed.repo }

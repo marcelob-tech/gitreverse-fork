@@ -7,6 +7,7 @@ import { HOME_EXAMPLES } from "@/lib/home-example-repos";
 import { parseGitHubRepoInput } from "@/lib/parse-github-repo";
 
 const GITREVERSE_HISTORY_KEY = "gitreverse_history";
+const GITREVERSE_HISTORY_MAX = 20;
 const HISTORY_PROMPT_PREVIEW_LEN = 160;
 
 function historyPromptPreview(text: string): string {
@@ -15,11 +16,48 @@ function historyPromptPreview(text: string): string {
   return `${t.slice(0, HISTORY_PROMPT_PREVIEW_LEN).trimEnd()}…`;
 }
 
+/** Stable row id: `quick`, `deep`, or `m:${trimmedFocus}` (manual). */
+function historySlotOf(e: { historySlot?: string }): string {
+  return e.historySlot ?? "quick";
+}
+
+function historySlotFromProps(
+  preserveUrl: boolean,
+  autoSubmitDeep: boolean,
+  autoSubmitFocus: string | undefined,
+  initialManualFocus: string | undefined,
+  initialGenerationKind: "quick" | "deep" | "manual" | undefined
+): string {
+  if (preserveUrl) {
+    if (autoSubmitDeep || initialGenerationKind === "deep") return "deep";
+    const focus =
+      (autoSubmitFocus?.trim() || initialManualFocus?.trim()) ?? "";
+    if (initialGenerationKind === "manual" || focus) {
+      return `m:${focus}`;
+    }
+  }
+  return "quick";
+}
+
+function historySlotFromGenerationState(
+  kind: "quick" | "deep" | "manual" | null,
+  manualFocus: string | null
+): string | null {
+  if (kind == null) return null;
+  if (kind === "deep") return "deep";
+  if (kind === "manual") return `m:${manualFocus?.trim() ?? ""}`;
+  return "quick";
+}
+
 type GitreverseHistoryEntry = {
   owner: string;
   repo: string;
   visitedAt: string;
+  /** Distinguishes quick vs deep vs manual rows for the same repo. */
+  historySlot?: string;
   promptPreview?: string;
+  lastGenerationType?: "quick" | "deep" | "manual";
+  lastManualFocus?: string;
 };
 
 type ReversePromptHomeProps = {
@@ -28,6 +66,15 @@ type ReversePromptHomeProps = {
   initialPrompt?: string;
   owner?: string;
   repo?: string;
+  /** Auto-run Deep Reverse on mount (shareable `/owner/repo/deep`). */
+  autoSubmitDeep?: boolean;
+  /** Auto-run manual control with this focus on mount (shareable `/owner/repo/<focus>`). */
+  autoSubmitFocus?: string;
+  /** When true, do not rewrite the URL to `/:owner/:repo` after generation. */
+  preserveUrl?: boolean;
+  /** When SSR provides a cached prompt, record how it was produced for history. */
+  initialGenerationKind?: "quick" | "deep" | "manual";
+  initialManualFocus?: string;
 };
 
 export function ReversePromptHome({
@@ -36,6 +83,11 @@ export function ReversePromptHome({
   initialPrompt,
   owner,
   repo,
+  autoSubmitDeep = false,
+  autoSubmitFocus,
+  preserveUrl = false,
+  initialGenerationKind,
+  initialManualFocus,
 }: ReversePromptHomeProps) {
   const [repoUrl, setRepoUrl] = useState(initialRepoInput);
   const [customReverse, setCustomReverse] = useState(false);
@@ -54,6 +106,12 @@ export function ReversePromptHome({
    * the Manual control checkbox, so we cannot key off `customReverse` alone.
    */
   const [loadKind, setLoadKind] = useState<"none" | "quick" | "custom">("none");
+  const [lastGenerationKind, setLastGenerationKind] = useState<
+    "quick" | "deep" | "manual" | null
+  >(() => initialGenerationKind ?? null);
+  const [lastManualFocus, setLastManualFocus] = useState<string | null>(() =>
+    initialManualFocus?.trim() ? initialManualFocus.trim() : null
+  );
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const autoSubmitStartedRef = useRef(false);
 
@@ -85,8 +143,10 @@ export function ReversePromptHome({
       if (typeof data.prompt === "string") {
         setPrompt(data.prompt);
         setLastResultWasCustom(false);
+        setLastGenerationKind("quick");
+        setLastManualFocus(null);
         const parsed = parseGitHubRepoInput(input);
-        if (parsed && typeof window !== "undefined") {
+        if (parsed && typeof window !== "undefined" && !preserveUrl) {
           window.history.replaceState(
             null,
             "",
@@ -102,7 +162,7 @@ export function ReversePromptHome({
       setLoading(false);
       setLoadKind("none");
     }
-  }, []);
+  }, [preserveUrl]);
 
   const runCustomReverse = useCallback(
     async (input: string, focusOrDeep: string | { mode: "deep" }) => {
@@ -153,8 +213,15 @@ export function ReversePromptHome({
             }
             setPrompt(data.prompt);
             setLastResultWasCustom(true);
+            if (isDeep) {
+              setLastGenerationKind("deep");
+              setLastManualFocus(null);
+            } else {
+              setLastGenerationKind("manual");
+              setLastManualFocus(String(focusOrDeep as string).trim());
+            }
             const parsed = parseGitHubRepoInput(input);
-            if (parsed && typeof window !== "undefined") {
+            if (parsed && typeof window !== "undefined" && !preserveUrl) {
               window.history.replaceState(
                 null,
                 "",
@@ -216,8 +283,15 @@ export function ReversePromptHome({
                 if (typeof j.prompt === "string") {
                   setPrompt(j.prompt);
                   setLastResultWasCustom(true);
+                  if (isDeep) {
+                    setLastGenerationKind("deep");
+                    setLastManualFocus(null);
+                  } else {
+                    setLastGenerationKind("manual");
+                    setLastManualFocus(String(focusOrDeep as string).trim());
+                  }
                   const parsed = parseGitHubRepoInput(input);
-                  if (parsed && typeof window !== "undefined") {
+                  if (parsed && typeof window !== "undefined" && !preserveUrl) {
                     window.history.replaceState(
                       null,
                       "",
@@ -244,7 +318,7 @@ export function ReversePromptHome({
         setManualStatusLine("");
       }
     },
-    []
+    [preserveUrl]
   );
 
   function onSubmit(e: React.FormEvent) {
@@ -263,14 +337,35 @@ export function ReversePromptHome({
   }
 
   useEffect(() => {
-    if (!autoSubmit || autoSubmitStartedRef.current) return;
+    if (autoSubmitStartedRef.current) return;
     const trimmed = initialRepoInput?.trim() ?? "";
     if (!trimmed || !parseGitHubRepoInput(trimmed)) return;
-    autoSubmitStartedRef.current = true;
-    void runReversePrompt(trimmed);
-  }, [autoSubmit, initialRepoInput, runReversePrompt]);
 
-  /* Custom reverse requires an explicit prompt — do not auto-submit on shared links. */
+    if (autoSubmitDeep) {
+      autoSubmitStartedRef.current = true;
+      void runCustomReverse(trimmed, { mode: "deep" });
+      return;
+    }
+    const focus = autoSubmitFocus?.trim() ?? "";
+    if (focus) {
+      autoSubmitStartedRef.current = true;
+      void runCustomReverse(trimmed, focus);
+      return;
+    }
+    if (autoSubmit) {
+      autoSubmitStartedRef.current = true;
+      void runReversePrompt(trimmed);
+    }
+  }, [
+    autoSubmit,
+    autoSubmitDeep,
+    autoSubmitFocus,
+    initialRepoInput,
+    runCustomReverse,
+    runReversePrompt,
+  ]);
+
+  /* `/owner/repo` uses quick auto-submit; `/owner/repo/deep` and `/owner/repo/<focus>` use the branches above. */
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -292,41 +387,6 @@ export function ReversePromptHome({
     if (typeof window === "undefined") return;
     const o = owner?.trim();
     const r = repo?.trim();
-    if (!o || !r) return;
-
-    const MAX = 20;
-    const raw = localStorage.getItem(GITREVERSE_HISTORY_KEY);
-    let arr: GitreverseHistoryEntry[] = [];
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as unknown;
-        arr = Array.isArray(parsed) ? (parsed as GitreverseHistoryEntry[]) : [];
-      } catch {
-        arr = [];
-      }
-    }
-    const idx = arr.findIndex((e) => e.owner === o && e.repo === r);
-    const prevPreview = idx !== -1 ? arr[idx]?.promptPreview : undefined;
-    const entry: GitreverseHistoryEntry = {
-      owner: o,
-      repo: r,
-      visitedAt: new Date().toISOString(),
-      ...(prevPreview != null && prevPreview !== ""
-        ? { promptPreview: prevPreview }
-        : {}),
-    };
-    if (idx !== -1) arr.splice(idx, 1);
-    arr.unshift(entry);
-    localStorage.setItem(
-      GITREVERSE_HISTORY_KEY,
-      JSON.stringify(arr.slice(0, MAX))
-    );
-  }, [owner, repo]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const o = owner?.trim();
-    const r = repo?.trim();
     const p = prompt.trim();
     if (!o || !r || !p) return;
 
@@ -341,11 +401,69 @@ export function ReversePromptHome({
         return;
       }
     }
-    const idx = arr.findIndex((e) => e.owner === o && e.repo === r);
-    if (idx === -1 || arr[idx].promptPreview === preview) return;
-    arr[idx] = { ...arr[idx], promptPreview: preview };
+    const slot =
+      historySlotFromGenerationState(lastGenerationKind, lastManualFocus) ??
+      historySlotFromProps(
+        preserveUrl,
+        autoSubmitDeep,
+        autoSubmitFocus,
+        initialManualFocus,
+        initialGenerationKind
+      );
+
+    const idx = arr.findIndex(
+      (e) => e.owner === o && e.repo === r && historySlotOf(e) === slot
+    );
+
+    const gen = lastGenerationKind ?? undefined;
+    const focusMeta =
+      lastGenerationKind === "manual" && lastManualFocus?.trim()
+        ? lastManualFocus.trim()
+        : undefined;
+
+    if (idx === -1) {
+      arr.unshift({
+        owner: o,
+        repo: r,
+        historySlot: slot,
+        visitedAt: new Date().toISOString(),
+        promptPreview: preview,
+        ...(gen != null ? { lastGenerationType: gen } : {}),
+        lastManualFocus: focusMeta,
+      });
+      localStorage.setItem(
+        GITREVERSE_HISTORY_KEY,
+        JSON.stringify(arr.slice(0, GITREVERSE_HISTORY_MAX))
+      );
+      return;
+    }
+
+    const cur = arr[idx];
+    const samePreview = cur.promptPreview === preview;
+    const sameGen = cur.lastGenerationType === gen;
+    const sameFocus = cur.lastManualFocus === focusMeta;
+    if (samePreview && sameGen && sameFocus) return;
+
+    arr[idx] = {
+      ...cur,
+      historySlot: slot,
+      promptPreview: preview,
+      ...(gen != null ? { lastGenerationType: gen } : {}),
+      lastManualFocus: focusMeta,
+    };
     localStorage.setItem(GITREVERSE_HISTORY_KEY, JSON.stringify(arr));
-  }, [owner, repo, prompt]);
+  }, [
+    owner,
+    repo,
+    prompt,
+    lastGenerationKind,
+    lastManualFocus,
+    preserveUrl,
+    autoSubmitDeep,
+    autoSubmitFocus,
+    initialManualFocus,
+    initialGenerationKind,
+  ]);
 
   useEffect(() => {
     if (!prompt) return;
