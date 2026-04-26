@@ -115,6 +115,22 @@ export function ReversePromptHome({
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const autoSubmitStartedRef = useRef(false);
 
+  /** Open Manual control and fill the focus when the URL (or SSR) carries a manual focus segment. */
+  useEffect(() => {
+    if (autoSubmitDeep) {
+      setCustomReverse(false);
+      return;
+    }
+    const focus =
+      (autoSubmitFocus?.trim() || initialManualFocus?.trim()) ?? "";
+    if (focus) {
+      setCustomReverse(true);
+      setCustomPrompt(focus);
+    } else {
+      setCustomReverse(false);
+    }
+  }, [autoSubmitDeep, autoSubmitFocus, initialManualFocus]);
+
   const runReversePrompt = useCallback(async (input: string) => {
     setError(null);
     setRateLimited(false);
