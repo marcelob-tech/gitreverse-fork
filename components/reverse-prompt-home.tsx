@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ReverseGenerationFlavorText } from "@/components/reverse-generation-flavor-text";
 import { HOME_EXAMPLES } from "@/lib/home-example-repos";
@@ -15,6 +16,16 @@ const RL_KEY_DEEP = "gr_rl_deep";
 const RL_KEY_MANUAL = "gr_rl_manual";
 const DAILY_CUSTOM_LIMIT = 3;
 const SUBSCRIBER_EMAIL_KEY = "gr_subscriber_email";
+const PENDING_REDIRECT_KEY = "gr_pending_redirect";
+
+function savePendingRedirect(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(PENDING_REDIRECT_KEY, window.location.pathname);
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 const PAYMENT_LINK =
   (typeof process !== "undefined" &&
@@ -128,6 +139,7 @@ export function ReversePromptHome({
   initialGenerationKind,
   initialManualFocus,
 }: ReversePromptHomeProps) {
+  const router = useRouter();
   const [repoUrl, setRepoUrl] = useState(initialRepoInput);
   const [customReverse, setCustomReverse] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
@@ -171,13 +183,20 @@ export function ReversePromptHome({
     }
     const focus =
       (autoSubmitFocus?.trim() || initialManualFocus?.trim()) ?? "";
+    if (!initialRepoInput?.trim()) {
+      if (focus) {
+        setCustomReverse(true);
+        setCustomPrompt(focus);
+      }
+      return;
+    }
     if (focus) {
       setCustomReverse(true);
       setCustomPrompt(focus);
     } else {
       setCustomReverse(false);
     }
-  }, [autoSubmitDeep, autoSubmitFocus, initialManualFocus]);
+  }, [autoSubmitDeep, autoSubmitFocus, initialManualFocus, initialRepoInput]);
 
   /** Stripe Payment Link return URL + restore subscriber from localStorage. */
   useEffect(() => {
@@ -187,6 +206,10 @@ export function ReversePromptHome({
     async function hydrateSubscriber() {
       const params = new URLSearchParams(window.location.search);
       const sessionId = params.get("session_id")?.trim();
+
+      if (!sessionId) {
+        localStorage.removeItem(PENDING_REDIRECT_KEY);
+      }
 
       if (sessionId) {
         setCheckoutVerifyState("verifying");
@@ -202,7 +225,13 @@ export function ReversePromptHome({
             setIsSubscriber(true);
             setDailyLimitReached(null);
             setCheckoutVerifyState("idle");
-            window.history.replaceState(null, "", window.location.pathname);
+            const pendingRedirect = localStorage.getItem(PENDING_REDIRECT_KEY);
+            localStorage.removeItem(PENDING_REDIRECT_KEY);
+            if (pendingRedirect) {
+              void router.push(pendingRedirect);
+            } else {
+              window.history.replaceState(null, "", window.location.pathname);
+            }
           } else {
             setCheckoutVerifyState("still_processing");
           }
@@ -243,7 +272,7 @@ export function ReversePromptHome({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const runReversePrompt = useCallback(async (input: string) => {
     setError(null);
@@ -510,6 +539,25 @@ export function ReversePromptHome({
     e.preventDefault();
     if (loading) return;
     const trimmed = repoUrl.trim();
+
+    if (!initialRepoInput?.trim()) {
+      const parsed = parseGitHubRepoInput(trimmed);
+      if (!parsed) return;
+      if (customReverse) {
+        const focus = customPrompt.trim();
+        void router.push(
+          focus
+            ? `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/${encodeURIComponent(focus)}`
+            : `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+        );
+      } else {
+        void router.push(
+          `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+        );
+      }
+      return;
+    }
+
     if (customReverse) {
       void runCustomReverse(trimmed, customPrompt.trim());
     } else {
@@ -753,11 +801,19 @@ export function ReversePromptHome({
                     setIsSubscriber(true);
                     setDailyLimitReached(null);
                     setCheckoutVerifyState("idle");
-                    window.history.replaceState(
-                      null,
-                      "",
-                      window.location.pathname
+                    const pendingRedirect = localStorage.getItem(
+                      PENDING_REDIRECT_KEY
                     );
+                    localStorage.removeItem(PENDING_REDIRECT_KEY);
+                    if (pendingRedirect) {
+                      void router.push(pendingRedirect);
+                    } else {
+                      window.history.replaceState(
+                        null,
+                        "",
+                        window.location.pathname
+                      );
+                    }
                   } else {
                     setCheckoutVerifyState("still_processing");
                   }
@@ -978,8 +1034,12 @@ export function ReversePromptHome({
                   </p>
                   <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                     {PAYMENT_LINK ? (
-                      <a
-                        href={PAYMENT_LINK}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          savePendingRedirect();
+                          window.location.href = PAYMENT_LINK;
+                        }}
                         className="inline-flex items-center gap-1.5 rounded border-[2px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-[#ffbd5c]"
                       >
                         Upgrade → $9/mo
@@ -998,7 +1058,7 @@ export function ReversePromptHome({
                             strokeLinejoin="round"
                           />
                         </svg>
-                      </a>
+                      </button>
                     ) : null}
                     <Link
                       href="/library"
@@ -1126,13 +1186,27 @@ export function ReversePromptHome({
                     role="button"
                     tabIndex={0}
                     className="cursor-pointer font-medium text-zinc-900 underline decoration-zinc-400 underline-offset-2 transition-colors hover:text-zinc-950"
-                    onClick={() =>
-                      void runCustomReverse(repoUrl.trim(), { mode: "deep" })
-                    }
+                    onClick={() => {
+                      const parsed = parseGitHubRepoInput(repoUrl.trim());
+                      if (!initialRepoInput?.trim() && parsed) {
+                        void router.push(
+                          `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/deep`
+                        );
+                      } else {
+                        void runCustomReverse(repoUrl.trim(), { mode: "deep" });
+                      }
+                    }}
                     onKeyDown={(e) => {
                       if (e.key !== "Enter" && e.key !== " ") return;
                       e.preventDefault();
-                      void runCustomReverse(repoUrl.trim(), { mode: "deep" });
+                      const parsed = parseGitHubRepoInput(repoUrl.trim());
+                      if (!initialRepoInput?.trim() && parsed) {
+                        void router.push(
+                          `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/deep`
+                        );
+                      } else {
+                        void runCustomReverse(repoUrl.trim(), { mode: "deep" });
+                      }
                     }}
                   >
                     Deep Reverse
