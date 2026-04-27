@@ -115,6 +115,22 @@ export function ReversePromptHome({
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const autoSubmitStartedRef = useRef(false);
 
+  /** Open Manual control and fill the focus when the URL (or SSR) carries a manual focus segment. */
+  useEffect(() => {
+    if (autoSubmitDeep) {
+      setCustomReverse(false);
+      return;
+    }
+    const focus =
+      (autoSubmitFocus?.trim() || initialManualFocus?.trim()) ?? "";
+    if (focus) {
+      setCustomReverse(true);
+      setCustomPrompt(focus);
+    } else {
+      setCustomReverse(false);
+    }
+  }, [autoSubmitDeep, autoSubmitFocus, initialManualFocus]);
+
   const runReversePrompt = useCallback(async (input: string) => {
     setError(null);
     setRateLimited(false);
@@ -670,7 +686,7 @@ export function ReversePromptHome({
                         name="customPrompt"
                         rows={4}
                         className="relative z-10 w-full resize-y rounded border-[3px] border-zinc-900 bg-white px-4 py-3 text-base text-zinc-900 placeholder-zinc-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:opacity-80"
-                        placeholder="ask for detailed prompt or focus on a specific feature"
+                        placeholder="repurpose into your own version, or focus on a specific feature"
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
                         required={customReverse}
