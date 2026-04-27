@@ -125,6 +125,7 @@ type ReversePromptHomeProps = {
   /** When SSR provides a cached prompt, record how it was produced for history. */
   initialGenerationKind?: "quick" | "deep" | "manual";
   initialManualFocus?: string;
+  isHome?: boolean;
 };
 
 export function ReversePromptHome({
@@ -138,6 +139,7 @@ export function ReversePromptHome({
   preserveUrl = false,
   initialGenerationKind,
   initialManualFocus,
+  isHome = false,
 }: ReversePromptHomeProps) {
   const router = useRouter();
   const [repoUrl, setRepoUrl] = useState(initialRepoInput);
@@ -731,10 +733,14 @@ export function ReversePromptHome({
     <div className="flex min-h-screen flex-col bg-[#FFFDF8] text-zinc-900">
       <nav className="sticky top-0 z-50 border-b-[3px] border-zinc-900 bg-[#FFFDF8]">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <span className="text-xl font-bold tracking-tight">
+          <Link
+            href="/"
+            className="text-xl font-bold tracking-tight transition-transform hover:-translate-y-0.5"
+            aria-label="GitReverse home"
+          >
             <span className="text-zinc-900">Git</span>
             <span className="text-[#d31611]">Reverse</span>
-          </span>
+          </Link>
           <div className="flex items-center gap-4">
             <Link
               href="/library"
@@ -828,61 +834,58 @@ export function ReversePromptHome({
           </div>
         ) : null}
         <div className="flex w-full flex-col items-center gap-6">
-          <div className="relative flex w-full flex-col items-center text-center">
-            <svg
-              className="absolute left-0 top-0 hidden h-16 w-16 sm:block lg:left-8"
-              viewBox="0 0 91 98"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden="true"
-            >
-              <path
-                d="m35.878 14.162 1.333-5.369 1.933 5.183c4.47 11.982 14.036 21.085 25.828 24.467l5.42 1.555-5.209 2.16c-11.332 4.697-19.806 14.826-22.888 27.237l-1.333 5.369-1.933-5.183C34.56 57.599 24.993 48.496 13.201 45.114l-5.42-1.555 5.21-2.16c11.331-4.697 19.805-14.826 22.887-27.237Z"
-                fill="#FE4A60"
-                stroke="#000"
-                strokeWidth="3.445"
-              />
-              <path
-                d="M79.653 5.729c-2.436 5.323-9.515 15.25-18.341 12.374m9.197 16.336c2.6-5.851 10.008-16.834 18.842-13.956m-9.738-15.07c-.374 3.787 1.076 12.078 9.869 14.943M70.61 34.6c.503-4.21-.69-13.346-9.49-16.214M14.922 65.967c1.338 5.677 6.372 16.756 15.808 15.659M18.21 95.832c-1.392-6.226-6.54-18.404-15.984-17.305m12.85-12.892c-.41 3.771-3.576 11.588-12.968 12.681M18.025 96c.367-4.21 3.453-12.905 12.854-14"
-                stroke="#000"
-                strokeWidth="2.548"
-                strokeLinecap="round"
-              />
-            </svg>
-
-            <svg
-              className="absolute right-0 top-4 hidden h-14 w-14 sm:block lg:right-8"
-              viewBox="0 0 92 80"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden="true"
-            >
-              <path
-                d="m35.213 16.953.595-5.261 2.644 4.587a35.056 35.056 0 0 0 26.432 17.33l5.261.594-4.587 2.644A35.056 35.056 0 0 0 48.23 63.28l-.595 5.26-2.644-4.587a35.056 35.056 0 0 0-26.432-17.328l-5.261-.595 4.587-2.644a35.056 35.056 0 0 0 17.329-26.433Z"
-                fill="#5CF1A4"
-                stroke="#000"
-                strokeWidth="2.868"
-              />
-              <path
-                d="M75.062 40.108c1.07 5.255 1.072 16.52-7.472 19.54m7.422-19.682c1.836 2.965 7.643 8.14 16.187 5.121-8.544 3.02-8.207 15.23-6.971 20.957-1.97-3.343-8.044-9.274-16.588-6.254M12.054 28.012c1.34-5.22 6.126-15.4 14.554-14.369M12.035 28.162c-.274-3.487-2.93-10.719-11.358-11.75C9.104 17.443 14.013 6.262 15.414.542c.226 3.888 2.784 11.92 11.212 12.95"
-                stroke="#000"
-                strokeWidth="2.319"
-                strokeLinecap="round"
-              />
-            </svg>
-
-            <h1 className="text-5xl font-extrabold tracking-tighter sm:text-6xl lg:text-7xl">
-              Repository to
-              <br />
-              Prompt
-            </h1>
-            <p className="mt-4 max-w-xl text-lg text-zinc-600">
-              Reverse engineer a codebase{" "}
-              into a prompt
-              that likely created it.
-            </p>
-          </div>
-
+          {isHome && (
+            <div className="relative flex w-full flex-col items-center text-center">
+              <svg
+                className="absolute left-0 top-0 hidden h-16 w-16 sm:block lg:left-8"
+                viewBox="0 0 91 98"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="m35.878 14.162 1.333-5.369 1.933 5.183c4.47 11.982 14.036 21.085 25.828 24.467l5.42 1.555-5.209 2.16c-11.332 4.697-19.806 14.826-22.888 27.237l-1.333 5.369-1.933-5.183C34.56 57.599 24.993 48.496 13.201 45.114l-5.42-1.555 5.21-2.16c11.331-4.697 19.805-14.826 22.887-27.237Z"
+                  fill="#FE4A60"
+                  stroke="#000"
+                  strokeWidth="3.445"
+                />
+                <path
+                  d="M79.653 5.729c-2.436 5.323-9.515 15.25-18.341 12.374m9.197 16.336c2.6-5.851 10.008-16.834 18.842-13.956m-9.738-15.07c-.374 3.787 1.076 12.078 9.869 14.943M70.61 34.6c.503-4.21-.69-13.346-9.49-16.214M14.922 65.967c1.338 5.677 6.372 16.756 15.808 15.659M18.21 95.832c-1.392-6.226-6.54-18.404-15.984-17.305m12.85-12.892c-.41 3.771-3.576 11.588-12.968 12.681M18.025 96c.367-4.21 3.453-12.905 12.854-14"
+                  stroke="#000"
+                  strokeWidth="2.548"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <svg
+                className="absolute right-0 top-4 hidden h-14 w-14 sm:block lg:right-8"
+                viewBox="0 0 92 80"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="m35.213 16.953.595-5.261 2.644 4.587a35.056 35.056 0 0 0 26.432 17.33l5.261.594-4.587 2.644A35.056 35.056 0 0 0 48.23 63.28l-.595 5.26-2.644-4.587a35.056 35.056 0 0 0-26.432-17.328l-5.261-.595 4.587-2.644a35.056 35.056 0 0 0 17.329-26.433Z"
+                  fill="#5CF1A4"
+                  stroke="#000"
+                  strokeWidth="2.868"
+                />
+                <path
+                  d="M75.062 40.108c1.07 5.255 1.072 16.52-7.472 19.54m7.422-19.682c1.836 2.965 7.643 8.14 16.187 5.121-8.544 3.02-8.207 15.23-6.971 20.957-1.97-3.343-8.044-9.274-16.588-6.254M12.054 28.012c1.34-5.22 6.126-15.4 14.554-14.369M12.035 28.162c-.274-3.487-2.93-10.719-11.358-11.75C9.104 17.443 14.013 6.262 15.414.542c.226 3.888 2.784 11.92 11.212 12.95"
+                  stroke="#000"
+                  strokeWidth="2.319"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <h1 className="text-5xl font-extrabold tracking-tighter sm:text-6xl lg:text-7xl">
+                Repository to
+                <br />
+                Prompt
+              </h1>
+              <p className="mt-4 max-w-xl text-lg text-zinc-600">
+                Reverse engineer a codebase into a prompt that likely created it.
+              </p>
+            </div>
+          )}
           <div className="flex w-full max-w-2xl flex-col gap-3">
           <div className="relative w-full">
             <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl bg-zinc-900" />
@@ -996,7 +999,62 @@ export function ReversePromptHome({
                     <ReverseGenerationFlavorText />
                   )}
                 </div>
-              ) : !customReverse ? (
+              ) : null}
+
+              {dailyLimitReached ? (
+                <div
+                  className="mt-4 rounded-lg border-[3px] border-zinc-400 bg-zinc-100 p-4"
+                  role="alert"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <p className="text-sm font-semibold text-zinc-900">
+                      You&apos;ve hit today&apos;s limit.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {PAYMENT_LINK ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            savePendingRedirect();
+                            window.location.href = PAYMENT_LINK;
+                          }}
+                          className="inline-flex items-center justify-center rounded border-[2px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-[#ffbd5c]"
+                        >
+                          Get Unlimited
+                        </button>
+                      ) : null}
+                      <Link
+                        href="/library"
+                        className={`inline-flex items-center justify-center rounded border-[2px] px-3 py-1.5 text-sm font-semibold transition-colors ${
+                          PAYMENT_LINK
+                            ? "border-zinc-400 bg-white text-zinc-800 hover:bg-zinc-50"
+                            : "border-zinc-800 bg-white text-zinc-900 hover:bg-zinc-50"
+                        }`}
+                      >
+                        Browse Library
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ) : rateLimited ? (
+                <div className="mt-4 rounded-lg border-[3px] border-amber-400 bg-amber-50 p-4" role="alert">
+                  <p className="font-semibold text-amber-900">Sorry, we&apos;re a bit overwhelmed right now.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <p className="w-full text-sm text-amber-800">Come back in a couple of hours, or check out what others have already generated:</p>
+                    <Link
+                      href="/library"
+                      className="inline-flex items-center justify-center rounded border-[2px] border-amber-600 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-200"
+                    >
+                      Browse the library
+                    </Link>
+                  </div>
+                </div>
+              ) : error ? (
+                <p className="mt-3 text-sm text-red-600" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              {isHome && !loading && !customReverse ? (
                 <div className="mt-4 flex flex-wrap gap-2">
                   <span className="w-full text-sm text-zinc-600">
                     Try example repos:
@@ -1015,112 +1073,21 @@ export function ReversePromptHome({
                   ))}
                 </div>
               ) : null}
-
-              {dailyLimitReached ? (
-                <div
-                  className="mt-4 rounded-lg border-[3px] border-zinc-400 bg-zinc-100 p-4"
-                  role="alert"
-                >
-                  <p className="font-semibold text-zinc-900">
-                    You&apos;ve used all {DAILY_CUSTOM_LIMIT}{" "}
-                    {dailyLimitReached === "deep"
-                      ? "Deep Reverses"
-                      : "Manual control runs"}{" "}
-                    for today.
-                  </p>
-                  <p className="mt-2 text-sm text-zinc-700">
-                    Upgrade for unlimited
-                    Deep Reverse and Manual control, or browse the library.
-                  </p>
-                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                    {PAYMENT_LINK ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          savePendingRedirect();
-                          window.location.href = PAYMENT_LINK;
-                        }}
-                        className="inline-flex items-center gap-1.5 rounded border-[2px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-[#ffbd5c]"
-                      >
-                        Upgrade → $9/mo
-                        <svg
-                          className="h-3.5 w-3.5"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M3 8h10M9 4l4 4-4 4"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    ) : null}
-                    <Link
-                      href="/library"
-                      className={`inline-flex items-center gap-1.5 rounded border-[2px] px-3 py-1.5 text-sm font-semibold transition-colors ${
-                        PAYMENT_LINK
-                          ? "border-zinc-400 bg-white text-zinc-800 hover:bg-zinc-50"
-                          : "border-zinc-800 bg-white text-zinc-900 hover:bg-zinc-50"
-                      }`}
-                    >
-                      Browse the library
-                      <svg
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d="M3 8h10M9 4l4 4-4 4"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </Link>
-                  </div>
-                </div>
-              ) : rateLimited ? (
-                <div className="mt-4 rounded-lg border-[3px] border-amber-400 bg-amber-50 p-4" role="alert">
-                  <p className="font-semibold text-amber-900">Sorry, we&apos;re a bit overwhelmed right now.</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <p className="w-full text-sm text-amber-800">Come back in a couple of hours, or check out what others have already generated:</p>
-                    <Link
-                      href="/library"
-                      className="inline-flex items-center gap-1.5 rounded border-[2px] border-amber-600 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-200"
-                    >
-                      Browse the library
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </Link>
-                  </div>
-                </div>
-              ) : error ? (
-                <p className="mt-3 text-sm text-red-600" role="alert">
-                  {error}
-                </p>
-              ) : null}
             </form>
           </div>
-          <p className="text-center text-sm text-zinc-500">
-            You can also replace{" "}
-            <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs text-zinc-700">
-              hub
-            </code>{" "}
-            with{" "}
-            <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs text-zinc-700">
-              reverse
-            </code>{" "}
-            in any GitHub URL.
-          </p>
+          {isHome && (
+            <p className="text-center text-sm text-zinc-500">
+              You can also replace{" "}
+              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs text-zinc-700">
+                hub
+              </code>{" "}
+              with{" "}
+              <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs text-zinc-700">
+                reverse
+              </code>{" "}
+              in any GitHub URL.
+            </p>
+          )}
           </div>
         </div>
 
