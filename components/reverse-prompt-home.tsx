@@ -1002,70 +1002,34 @@ export function ReversePromptHome({
                   className="mt-4 rounded-lg border-[3px] border-zinc-400 bg-zinc-100 p-4"
                   role="alert"
                 >
-                  <p className="font-semibold text-zinc-900">
-                    You&apos;ve used all {DAILY_CUSTOM_LIMIT}{" "}
-                    {dailyLimitReached === "deep"
-                      ? "Deep Reverses"
-                      : "Manual control runs"}{" "}
-                    for today.
-                  </p>
-                  <p className="mt-2 text-sm text-zinc-700">
-                    Upgrade for unlimited
-                    Deep Reverse and Manual control, or browse the library.
-                  </p>
-                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                    {PAYMENT_LINK ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          savePendingRedirect();
-                          window.location.href = PAYMENT_LINK;
-                        }}
-                        className="inline-flex items-center gap-1.5 rounded border-[2px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-[#ffbd5c]"
-                      >
-                        Upgrade → $9/mo
-                        <svg
-                          className="h-3.5 w-3.5"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                          aria-hidden="true"
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <p className="text-sm font-semibold text-zinc-900">
+                      You&apos;ve hit today&apos;s limit.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {PAYMENT_LINK ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            savePendingRedirect();
+                            window.location.href = PAYMENT_LINK;
+                          }}
+                          className="inline-flex items-center justify-center rounded border-[2px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-[#ffbd5c]"
                         >
-                          <path
-                            d="M3 8h10M9 4l4 4-4 4"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                    ) : null}
-                    <Link
-                      href="/library"
-                      className={`inline-flex items-center gap-1.5 rounded border-[2px] px-3 py-1.5 text-sm font-semibold transition-colors ${
-                        PAYMENT_LINK
-                          ? "border-zinc-400 bg-white text-zinc-800 hover:bg-zinc-50"
-                          : "border-zinc-800 bg-white text-zinc-900 hover:bg-zinc-50"
-                      }`}
-                    >
-                      Browse the library
-                      <svg
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden="true"
+                          Get Unlimited
+                        </button>
+                      ) : null}
+                      <Link
+                        href="/library"
+                        className={`inline-flex items-center justify-center rounded border-[2px] px-3 py-1.5 text-sm font-semibold transition-colors ${
+                          PAYMENT_LINK
+                            ? "border-zinc-400 bg-white text-zinc-800 hover:bg-zinc-50"
+                            : "border-zinc-800 bg-white text-zinc-900 hover:bg-zinc-50"
+                        }`}
                       >
-                        <path
-                          d="M3 8h10M9 4l4 4-4 4"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </Link>
+                        Browse Library
+                      </Link>
+                    </div>
                   </div>
                 </div>
               ) : rateLimited ? (
@@ -1075,12 +1039,9 @@ export function ReversePromptHome({
                     <p className="w-full text-sm text-amber-800">Come back in a couple of hours, or check out what others have already generated:</p>
                     <Link
                       href="/library"
-                      className="inline-flex items-center gap-1.5 rounded border-[2px] border-amber-600 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-200"
+                      className="inline-flex items-center justify-center rounded border-[2px] border-amber-600 bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-200"
                     >
                       Browse the library
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
                     </Link>
                   </div>
                 </div>
