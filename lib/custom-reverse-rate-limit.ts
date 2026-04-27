@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { hashVisitorIp } from "@/lib/visitor-ip";
+import { checkActiveSubscriber } from "@/lib/subscriber";
+import { SUBSCRIBER_EMAIL_HEADER } from "@/lib/subscriber-constants";
 
 const DAILY_LIMIT = 3;
 const RATE_LIMIT_RPC_TIMEOUT_MS = 2500;
@@ -15,6 +17,14 @@ export async function enforceCustomReverseRateLimit(
   req: NextRequest,
   isDeep: boolean
 ): Promise<NextResponse | null> {
+  const subscriberEmail = req.headers.get(SUBSCRIBER_EMAIL_HEADER)?.trim();
+  if (subscriberEmail) {
+    const active = await checkActiveSubscriber(subscriberEmail);
+    if (active === true) {
+      return null;
+    }
+  }
+
   const supabase = getSupabase();
   if (!supabase) return null;
 
