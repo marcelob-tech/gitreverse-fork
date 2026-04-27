@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ReverseGenerationFlavorText } from "@/components/reverse-generation-flavor-text";
 import { HOME_EXAMPLES } from "@/lib/home-example-repos";
 import { parseGitHubRepoInput } from "@/lib/parse-github-repo";
+import { SUBSCRIBER_EMAIL_HEADER } from "@/lib/subscriber-constants";
 
 const GITREVERSE_HISTORY_KEY = "gitreverse_history";
 const GITREVERSE_HISTORY_MAX = 20;
@@ -13,6 +14,12 @@ const HISTORY_PROMPT_PREVIEW_LEN = 160;
 const RL_KEY_DEEP = "gr_rl_deep";
 const RL_KEY_MANUAL = "gr_rl_manual";
 const DAILY_CUSTOM_LIMIT = 3;
+const SUBSCRIBER_EMAIL_KEY = "gr_subscriber_email";
+
+const PAYMENT_LINK =
+  (typeof process !== "undefined" &&
+    process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK?.trim()) ||
+  "";
 
 type RLEntry = { count: number; date: string };
 
@@ -132,6 +139,12 @@ export function ReversePromptHome({
   const [dailyLimitReached, setDailyLimitReached] = useState<
     "deep" | "manual" | null
   >(null);
+  const [subscriberEmail, setSubscriberEmail] = useState<string | null>(null);
+  const [isSubscriber, setIsSubscriber] = useState(false);
+  const [subscriberHydrated, setSubscriberHydrated] = useState(false);
+  const [checkoutVerifyState, setCheckoutVerifyState] = useState<
+    "idle" | "verifying" | "still_processing"
+  >("idle");
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
   const [copied, setCopied] = useState(false);
   /** Live line for manual/deep (SSE or cache); empty when idle. */
@@ -165,6 +178,72 @@ export function ReversePromptHome({
       setCustomReverse(false);
     }
   }, [autoSubmitDeep, autoSubmitFocus, initialManualFocus]);
+
+  /** Stripe Payment Link return URL + restore subscriber from localStorage. */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+
+    async function hydrateSubscriber() {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get("session_id")?.trim();
+
+      if (sessionId) {
+        setCheckoutVerifyState("verifying");
+        try {
+          const res = await fetch(
+            `/api/verify-subscription?session_id=${encodeURIComponent(sessionId)}`
+          );
+          const data = (await res.json()) as { email?: string; error?: string };
+          if (cancelled) return;
+          if (res.ok && typeof data.email === "string" && data.email) {
+            localStorage.setItem(SUBSCRIBER_EMAIL_KEY, data.email);
+            setSubscriberEmail(data.email);
+            setIsSubscriber(true);
+            setDailyLimitReached(null);
+            setCheckoutVerifyState("idle");
+            window.history.replaceState(null, "", window.location.pathname);
+          } else {
+            setCheckoutVerifyState("still_processing");
+          }
+        } catch {
+          if (!cancelled) setCheckoutVerifyState("still_processing");
+        }
+        if (!cancelled) setSubscriberHydrated(true);
+        return;
+      }
+
+      const stored = localStorage.getItem(SUBSCRIBER_EMAIL_KEY)?.trim();
+      if (stored) {
+        try {
+          const res = await fetch(
+            `/api/check-subscription?email=${encodeURIComponent(stored)}`
+          );
+          const data = (await res.json()) as { subscribed?: boolean };
+          if (cancelled) return;
+          if (data.subscribed) {
+            setSubscriberEmail(stored);
+            setIsSubscriber(true);
+          } else {
+            localStorage.removeItem(SUBSCRIBER_EMAIL_KEY);
+            setSubscriberEmail(null);
+            setIsSubscriber(false);
+          }
+        } catch {
+          if (!cancelled) {
+            setSubscriberEmail(null);
+            setIsSubscriber(false);
+          }
+        }
+      }
+      if (!cancelled) setSubscriberHydrated(true);
+    }
+
+    void hydrateSubscriber();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const runReversePrompt = useCallback(async (input: string) => {
     setError(null);
@@ -225,7 +304,11 @@ export function ReversePromptHome({
       const isDeep =
         typeof focusOrDeep === "object" && focusOrDeep.mode === "deep";
       const rlKey = isDeep ? RL_KEY_DEEP : RL_KEY_MANUAL;
-      if (getRLEntry(rlKey).count >= DAILY_CUSTOM_LIMIT) {
+      const bypassDaily = Boolean(isSubscriber && subscriberEmail?.trim());
+      if (
+        !bypassDaily &&
+        getRLEntry(rlKey).count >= DAILY_CUSTOM_LIMIT
+      ) {
         setDailyLimitReached(isDeep ? "deep" : "manual");
         return;
       }
@@ -243,7 +326,12 @@ export function ReversePromptHome({
 
         const res = await fetch("/api/custom-reverse", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(subscriberEmail
+              ? { [SUBSCRIBER_EMAIL_HEADER]: subscriberEmail }
+              : {}),
+          },
           body: JSON.stringify(bodyObj),
         });
 
@@ -280,7 +368,7 @@ export function ReversePromptHome({
             if (data.fromCache) {
               setManualStatusLine("Loaded from cache");
               await new Promise((r) => setTimeout(r, 450));
-            } else if (typeof window !== "undefined") {
+            } else if (typeof window !== "undefined" && !bypassDaily) {
               incrementRLEntry(rlKey);
             }
             setPrompt(data.prompt);
@@ -342,7 +430,7 @@ export function ReversePromptHome({
           return;
         }
 
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && !bypassDaily) {
           incrementRLEntry(rlKey);
         }
 
@@ -415,7 +503,7 @@ export function ReversePromptHome({
         setManualStatusLine("");
       }
     },
-    [preserveUrl]
+    [preserveUrl, isSubscriber, subscriberEmail]
   );
 
   function onSubmit(e: React.FormEvent) {
@@ -434,6 +522,7 @@ export function ReversePromptHome({
   }
 
   useEffect(() => {
+    if (!subscriberHydrated) return;
     if (autoSubmitStartedRef.current) return;
     const trimmed = initialRepoInput?.trim() ?? "";
     if (!trimmed || !parseGitHubRepoInput(trimmed)) return;
@@ -454,6 +543,7 @@ export function ReversePromptHome({
       void runReversePrompt(trimmed);
     }
   }, [
+    subscriberHydrated,
     autoSubmit,
     autoSubmitDeep,
     autoSubmitFocus,
@@ -623,6 +713,64 @@ export function ReversePromptHome({
       </nav>
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center gap-12 px-4 py-12 sm:px-6">
+        {checkoutVerifyState === "verifying" ? (
+          <div
+            className="w-full max-w-2xl rounded-lg border-[3px] border-zinc-400 bg-zinc-50 p-4 text-center text-sm text-zinc-800"
+            role="status"
+            aria-live="polite"
+          >
+            Confirming your subscription…
+          </div>
+        ) : null}
+        {checkoutVerifyState === "still_processing" ? (
+          <div
+            className="w-full max-w-2xl rounded-lg border-[3px] border-amber-400 bg-amber-50 p-4"
+            role="alert"
+          >
+            <p className="text-sm font-semibold text-amber-900">
+              Payment is still syncing
+            </p>
+            <p className="mt-2 text-sm text-amber-800">
+              Wait a few seconds and retry — we pull your email from Stripe as
+              soon as it lands in the database.
+            </p>
+            <button
+              type="button"
+              onClick={async () => {
+                const sid = new URLSearchParams(window.location.search)
+                  .get("session_id")
+                  ?.trim();
+                if (!sid) return;
+                setCheckoutVerifyState("verifying");
+                try {
+                  const res = await fetch(
+                    `/api/verify-subscription?session_id=${encodeURIComponent(sid)}`
+                  );
+                  const data = (await res.json()) as { email?: string };
+                  if (res.ok && typeof data.email === "string" && data.email) {
+                    localStorage.setItem(SUBSCRIBER_EMAIL_KEY, data.email);
+                    setSubscriberEmail(data.email);
+                    setIsSubscriber(true);
+                    setDailyLimitReached(null);
+                    setCheckoutVerifyState("idle");
+                    window.history.replaceState(
+                      null,
+                      "",
+                      window.location.pathname
+                    );
+                  } else {
+                    setCheckoutVerifyState("still_processing");
+                  }
+                } catch {
+                  setCheckoutVerifyState("still_processing");
+                }
+              }}
+              className="mt-3 rounded border-[2px] border-amber-700 bg-white px-3 py-1.5 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-100"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
         <div className="flex w-full flex-col items-center gap-6">
           <div className="relative flex w-full flex-col items-center text-center">
             <svg
@@ -825,13 +973,40 @@ export function ReversePromptHome({
                     for today.
                   </p>
                   <p className="mt-2 text-sm text-zinc-700">
-                    The limit resets at midnight (UTC), or check out the library
-                    in the meantime.
+                    Upgrade for unlimited
+                    Deep Reverse and Manual control, or browse the library.
                   </p>
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                    {PAYMENT_LINK ? (
+                      <a
+                        href={PAYMENT_LINK}
+                        className="inline-flex items-center gap-1.5 rounded border-[2px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-[#ffbd5c]"
+                      >
+                        Upgrade → $9/mo
+                        <svg
+                          className="h-3.5 w-3.5"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M3 8h10M9 4l4 4-4 4"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </a>
+                    ) : null}
                     <Link
                       href="/library"
-                      className="inline-flex items-center gap-1.5 rounded border-[2px] border-zinc-800 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
+                      className={`inline-flex items-center gap-1.5 rounded border-[2px] px-3 py-1.5 text-sm font-semibold transition-colors ${
+                        PAYMENT_LINK
+                          ? "border-zinc-400 bg-white text-zinc-800 hover:bg-zinc-50"
+                          : "border-zinc-800 bg-white text-zinc-900 hover:bg-zinc-50"
+                      }`}
                     >
                       Browse the library
                       <svg
