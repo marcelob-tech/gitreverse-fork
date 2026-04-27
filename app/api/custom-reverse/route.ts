@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import http from "node:http";
 import https from "node:https";
 import { URL } from "node:url";
+import { enforceCustomReverseRateLimit } from "@/lib/custom-reverse-rate-limit";
 import { DEEP_REVERSE_FOCUS, focusFingerprint } from "@/lib/focus-fingerprint";
 import { parseGitHubRepoInput } from "@/lib/parse-github-repo";
 import { getSupabase } from "@/lib/supabase";
@@ -160,13 +161,14 @@ function persistCustomPromptCache(opts: {
 }
 
 async function executeCustomReverse(opts: {
+  request: NextRequest;
   repoUrl: string;
   customPrompt: string | undefined;
   isDeep: boolean;
   focus: string;
   parsed: { owner: string; repo: string } | null;
 }): Promise<NextResponse> {
-  const { repoUrl, customPrompt, isDeep, focus, parsed } = opts;
+  const { request, repoUrl, customPrompt, isDeep, focus, parsed } = opts;
   const fp = focusFingerprint(focus);
 
   if (parsed) {
@@ -191,6 +193,9 @@ async function executeCustomReverse(opts: {
       }
     }
   }
+
+  const rateLimited = await enforceCustomReverseRateLimit(request, isDeep);
+  if (rateLimited) return rateLimited;
 
   const base = getServiceUrl().replace(/\/$/, "");
 
@@ -275,13 +280,14 @@ async function executeCustomReverse(opts: {
  * Tee response to persist the final `done` event in Supabase.
  */
 async function executeCustomReverseStream(opts: {
+  request: NextRequest;
   repoUrl: string;
   customPrompt: string | undefined;
   isDeep: boolean;
   focus: string;
   parsed: { owner: string; repo: string } | null;
 }): Promise<NextResponse> {
-  const { repoUrl, customPrompt, isDeep, focus, parsed } = opts;
+  const { request, repoUrl, customPrompt, isDeep, focus, parsed } = opts;
   const fp = focusFingerprint(focus);
 
   if (parsed) {
@@ -306,6 +312,9 @@ async function executeCustomReverseStream(opts: {
       }
     }
   }
+
+  const rateLimited = await enforceCustomReverseRateLimit(request, isDeep);
+  if (rateLimited) return rateLimited;
 
   const base = getServiceUrl().replace(/\/$/, "");
   const upstreamBody: { repoUrl: string; customPrompt?: string; mode?: "deep" } = {
@@ -425,6 +434,7 @@ export async function POST(request: NextRequest) {
   if (useStream) {
     if (!parsedForCache) {
       return executeCustomReverseStream({
+        request,
         repoUrl: trimmedUrl,
         customPrompt,
         isDeep,
@@ -433,6 +443,7 @@ export async function POST(request: NextRequest) {
       });
     }
     return executeCustomReverseStream({
+      request,
       repoUrl: trimmedUrl,
       customPrompt,
       isDeep,
@@ -443,6 +454,7 @@ export async function POST(request: NextRequest) {
 
   if (!parsedForCache) {
     return executeCustomReverse({
+      request,
       repoUrl: trimmedUrl,
       customPrompt,
       isDeep,
@@ -458,6 +470,7 @@ export async function POST(request: NextRequest) {
   }
 
   const promise = executeCustomReverse({
+    request,
     repoUrl: trimmedUrl,
     customPrompt,
     isDeep,

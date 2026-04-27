@@ -10,6 +10,38 @@ const GITREVERSE_HISTORY_KEY = "gitreverse_history";
 const GITREVERSE_HISTORY_MAX = 20;
 const HISTORY_PROMPT_PREVIEW_LEN = 160;
 
+const RL_KEY_DEEP = "gr_rl_deep";
+const RL_KEY_MANUAL = "gr_rl_manual";
+const DAILY_CUSTOM_LIMIT = 3;
+
+type RLEntry = { count: number; date: string };
+
+function getTodayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getRLEntry(key: string): RLEntry {
+  if (typeof window === "undefined")
+    return { count: 0, date: getTodayStr() };
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return { count: 0, date: getTodayStr() };
+    const e = JSON.parse(raw) as RLEntry;
+    return e.date === getTodayStr() ? e : { count: 0, date: getTodayStr() };
+  } catch {
+    return { count: 0, date: getTodayStr() };
+  }
+}
+
+function incrementRLEntry(key: string): void {
+  if (typeof window === "undefined") return;
+  const e = getRLEntry(key);
+  localStorage.setItem(
+    key,
+    JSON.stringify({ count: e.count + 1, date: e.date })
+  );
+}
+
 function historyPromptPreview(text: string): string {
   const t = text.trim().replace(/\s+/g, " ");
   if (t.length <= HISTORY_PROMPT_PREVIEW_LEN) return t;
@@ -97,6 +129,9 @@ export function ReversePromptHome({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rateLimited, setRateLimited] = useState(false);
+  const [dailyLimitReached, setDailyLimitReached] = useState<
+    "deep" | "manual" | null
+  >(null);
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
   const [copied, setCopied] = useState(false);
   /** Live line for manual/deep (SSE or cache); empty when idle. */
@@ -184,14 +219,20 @@ export function ReversePromptHome({
     async (input: string, focusOrDeep: string | { mode: "deep" }) => {
       setError(null);
       setRateLimited(false);
+      setDailyLimitReached(null);
       setPrompt("");
       setCopied(false);
+      const isDeep =
+        typeof focusOrDeep === "object" && focusOrDeep.mode === "deep";
+      const rlKey = isDeep ? RL_KEY_DEEP : RL_KEY_MANUAL;
+      if (getRLEntry(rlKey).count >= DAILY_CUSTOM_LIMIT) {
+        setDailyLimitReached(isDeep ? "deep" : "manual");
+        return;
+      }
       setManualStatusLine("Checking if it's cached…");
       setLoadKind("custom");
       setLoading(true);
       try {
-        const isDeep =
-          typeof focusOrDeep === "object" && focusOrDeep.mode === "deep";
         const bodyObj = isDeep
           ? { repoUrl: input, mode: "deep" as const, stream: true as const }
           : {
@@ -216,7 +257,20 @@ export function ReversePromptHome({
           };
           if (!res.ok) {
             if (res.status === 429) {
-              setRateLimited(true);
+              if (data.error === "daily_limit_reached") {
+                if (typeof window !== "undefined") {
+                  localStorage.setItem(
+                    rlKey,
+                    JSON.stringify({
+                      count: DAILY_CUSTOM_LIMIT,
+                      date: getTodayStr(),
+                    })
+                  );
+                }
+                setDailyLimitReached(isDeep ? "deep" : "manual");
+              } else {
+                setRateLimited(true);
+              }
               return;
             }
             setError(data.error ?? `Request failed (${res.status})`);
@@ -226,6 +280,8 @@ export function ReversePromptHome({
             if (data.fromCache) {
               setManualStatusLine("Loaded from cache");
               await new Promise((r) => setTimeout(r, 450));
+            } else if (typeof window !== "undefined") {
+              incrementRLEntry(rlKey);
             }
             setPrompt(data.prompt);
             setLastResultWasCustom(true);
@@ -253,9 +309,30 @@ export function ReversePromptHome({
         if (!res.ok) {
           try {
             const errData = (await res.json()) as { error?: string };
-            setError(errData.error ?? `Request failed (${res.status})`);
+            if (res.status === 429) {
+              if (errData.error === "daily_limit_reached") {
+                if (typeof window !== "undefined") {
+                  localStorage.setItem(
+                    rlKey,
+                    JSON.stringify({
+                      count: DAILY_CUSTOM_LIMIT,
+                      date: getTodayStr(),
+                    })
+                  );
+                }
+                setDailyLimitReached(isDeep ? "deep" : "manual");
+              } else {
+                setRateLimited(true);
+              }
+            } else {
+              setError(errData.error ?? `Request failed (${res.status})`);
+            }
           } catch {
-            setError(`Request failed (${res.status})`);
+            if (res.status === 429) {
+              setRateLimited(true);
+            } else {
+              setError(`Request failed (${res.status})`);
+            }
           }
           return;
         }
@@ -263,6 +340,10 @@ export function ReversePromptHome({
         if (!res.body) {
           setError("No response body from manual control.");
           return;
+        }
+
+        if (typeof window !== "undefined") {
+          incrementRLEntry(rlKey);
         }
 
         const reader = res.body.getReader();
@@ -711,7 +792,7 @@ export function ReversePromptHome({
                     <ReverseGenerationFlavorText />
                   )}
                 </div>
-              ) : (
+              ) : !customReverse ? (
                 <div className="mt-4 flex flex-wrap gap-2">
                   <span className="w-full text-sm text-zinc-600">
                     Try example repos:
@@ -729,9 +810,49 @@ export function ReversePromptHome({
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
 
-              {rateLimited ? (
+              {dailyLimitReached ? (
+                <div
+                  className="mt-4 rounded-lg border-[3px] border-zinc-400 bg-zinc-100 p-4"
+                  role="alert"
+                >
+                  <p className="font-semibold text-zinc-900">
+                    You&apos;ve used all {DAILY_CUSTOM_LIMIT}{" "}
+                    {dailyLimitReached === "deep"
+                      ? "Deep Reverses"
+                      : "Manual control runs"}{" "}
+                    for today.
+                  </p>
+                  <p className="mt-2 text-sm text-zinc-700">
+                    The limit resets at midnight (UTC), or check out the library
+                    in the meantime.
+                  </p>
+                  <div className="mt-3">
+                    <Link
+                      href="/library"
+                      className="inline-flex items-center gap-1.5 rounded border-[2px] border-zinc-800 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
+                    >
+                      Browse the library
+                      <svg
+                        className="h-3.5 w-3.5"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M3 8h10M9 4l4 4-4 4"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </Link>
+                  </div>
+                </div>
+              ) : rateLimited ? (
                 <div className="mt-4 rounded-lg border-[3px] border-amber-400 bg-amber-50 p-4" role="alert">
                   <p className="font-semibold text-amber-900">Sorry, we&apos;re a bit overwhelmed right now.</p>
                   <div className="mt-3 flex flex-wrap gap-2">
