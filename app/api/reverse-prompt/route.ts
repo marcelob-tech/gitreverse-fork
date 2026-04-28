@@ -112,7 +112,9 @@ function resolveLlmTarget(): LlmTarget | { error: string } {
     };
   }
 
-  switch (mode) {
+  const explicitMode = mode as LlmProvider;
+
+  switch (explicitMode) {
     case "grok":
       if (!xaiKey) {
         return {
@@ -145,10 +147,6 @@ function resolveLlmTarget(): LlmTarget | { error: string } {
         };
       }
       return googleTargetFromApiKey(googleKey);
-    default: {
-      const _exhaustive: never = mode;
-      return _exhaustive;
-    }
   }
 }
 
