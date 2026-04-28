@@ -14,7 +14,7 @@ You are given **repository metadata**, a **root file tree** (depth 1), and the *
 - **Outcome focused.** Describe what the app or library should *do* for a user using words a normal person would use.
 - **Honest scope.** Only claim features or stacks you infer from the README and tree you received. If the README was missing, empty, or uninformative, say so implicitly by keeping claims vague or limited to what the metadata suggests.
 - **Length:** about **120 to 200 words**, usually one short paragraph or a few tight sentences. Not a bullet list of file paths or dependencies.
-- **Tone:** natural and conversational. Use contractions when they fit. No preamble ("Sure, here is…"), no meta ("As an AI…"), no filler.
+- **Tone:** natural and conversational. Use contractions when they fit. No preamble ("Sure, here is…"), no meta ("As an AI…"), no filler. Use spacing and line breaks to make the prompt more readable. NEVER use hyphens or dashes, split into shorter sentences or use commas
 
 ## What to avoid
 
