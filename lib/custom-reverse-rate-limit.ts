@@ -10,6 +10,20 @@ const RATE_LIMIT_RPC_TIMEOUT_MS = 2500;
 
 export type CustomReverseRateLimitAction = "deep" | "manual";
 
+/** Skip DB-backed daily limits while developing locally or when explicitly opted out. */
+function shouldSkipCustomReverseRateLimit(req: NextRequest): boolean {
+  if (process.env.GITREVERSE_SKIP_CUSTOM_REVERSE_RATE_LIMIT === "true") {
+    return true;
+  }
+  if (process.env.NODE_ENV === "development") {
+    return true;
+  }
+  const host =
+    req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "";
+  const hostname = host.split(":")[0]?.toLowerCase() ?? "";
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
 /** Enforce daily per-IP limits for non-cached custom reverse. Returns a 429
  * response when over limit; returns `null` to continue (including fail-open on
  * timeout/DB errors). */
@@ -17,6 +31,10 @@ export async function enforceCustomReverseRateLimit(
   req: NextRequest,
   isDeep: boolean
 ): Promise<NextResponse | null> {
+  if (shouldSkipCustomReverseRateLimit(req)) {
+    return null;
+  }
+
   const subscriberEmail = req.headers.get(SUBSCRIBER_EMAIL_HEADER)?.trim();
   if (subscriberEmail) {
     const active = await checkActiveSubscriber(subscriberEmail);

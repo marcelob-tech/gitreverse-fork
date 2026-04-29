@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
 import { ReverseGenerationFlavorText } from "@/components/reverse-generation-flavor-text";
 import { HOME_EXAMPLES } from "@/lib/home-example-repos";
 import { parseGitHubRepoInput } from "@/lib/parse-github-repo";
@@ -1143,9 +1144,27 @@ export function ReversePromptHome({
                   </div>
                 </div>
               </div>
-              <pre className="max-h-[min(70vh,32rem)] overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-800">
-                {prompt}
-              </pre>
+              <div className="max-h-[min(70vh,32rem)] overflow-auto rounded-lg border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-800">
+                <ReactMarkdown
+                  components={{
+                    h1: ({ children }) => <h1 className="mb-2 mt-4 text-base font-bold first:mt-0">{children}</h1>,
+                    h2: ({ children }) => <h2 className="mb-2 mt-4 text-sm font-bold first:mt-0">{children}</h2>,
+                    h3: ({ children }) => <h3 className="mb-1 mt-3 text-sm font-semibold first:mt-0">{children}</h3>,
+                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                    ul: ({ children }) => <ul className="mb-2 ml-4 list-disc space-y-0.5">{children}</ul>,
+                    ol: ({ children }) => <ol className="mb-2 ml-4 list-decimal space-y-0.5">{children}</ol>,
+                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                    em: ({ children }) => <em className="italic">{children}</em>,
+                    code: ({ children }) => <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-xs">{children}</code>,
+                    pre: ({ children }) => <pre className="mb-2 overflow-auto rounded bg-zinc-100 p-3 font-mono text-xs">{children}</pre>,
+                    hr: () => <hr className="my-3 border-zinc-200" />,
+                    blockquote: ({ children }) => <blockquote className="border-l-2 border-zinc-300 pl-3 text-zinc-600">{children}</blockquote>,
+                  }}
+                >
+                  {prompt}
+                </ReactMarkdown>
+              </div>
               {!lastResultWasCustom && !loading ? (
                 <p className="mt-4 text-center text-sm text-zinc-600">
                   Want more depth?{" "}
