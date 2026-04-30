@@ -1015,9 +1015,24 @@ export function ReversePromptHome({
                       {PAYMENT_LINK ? (
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             savePendingRedirect();
-                            window.location.href = PAYMENT_LINK;
+                            try {
+                              const res = await fetch("/api/create-checkout", {
+                                method: "POST",
+                              });
+                              const data = (await res.json()) as {
+                                url?: string;
+                              };
+                              if (!res.ok || !data.url) {
+                                throw new Error("checkout_unavailable");
+                              }
+                              window.location.href = data.url;
+                            } catch {
+                              if (PAYMENT_LINK) {
+                                window.location.href = PAYMENT_LINK;
+                              }
+                            }
                           }}
                           className="inline-flex items-center justify-center rounded border-[2px] border-zinc-900 bg-[#ffc480] px-3 py-1.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-[#ffbd5c]"
                         >
