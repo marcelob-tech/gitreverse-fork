@@ -413,12 +413,23 @@ export function ReversePromptHome({
               setLastManualFocus(String(focusOrDeep as string).trim());
             }
             const parsed = parseGitHubRepoInput(input);
-            if (parsed && typeof window !== "undefined" && !preserveUrl) {
-              window.history.replaceState(
-                null,
-                "",
-                `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
-              );
+            if (parsed && typeof window !== "undefined") {
+              if (!isDeep) {
+                const f = String(focusOrDeep as string).trim();
+                window.history.replaceState(
+                  null,
+                  "",
+                  f
+                    ? `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/${encodeURIComponent(f)}`
+                    : `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+                );
+              } else if (!preserveUrl) {
+                window.history.replaceState(
+                  null,
+                  "",
+                  `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+                );
+              }
             }
           } else {
             setError("No prompt in response.");
@@ -508,12 +519,23 @@ export function ReversePromptHome({
                     setLastManualFocus(String(focusOrDeep as string).trim());
                   }
                   const parsed = parseGitHubRepoInput(input);
-                  if (parsed && typeof window !== "undefined" && !preserveUrl) {
-                    window.history.replaceState(
-                      null,
-                      "",
-                      `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
-                    );
+                  if (parsed && typeof window !== "undefined") {
+                    if (!isDeep) {
+                      const f = String(focusOrDeep as string).trim();
+                      window.history.replaceState(
+                        null,
+                        "",
+                        f
+                          ? `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/${encodeURIComponent(f)}`
+                          : `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+                      );
+                    } else if (!preserveUrl) {
+                      window.history.replaceState(
+                        null,
+                        "",
+                        `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+                      );
+                    }
                   }
                 } else {
                   setError("No prompt in response.");
@@ -562,7 +584,18 @@ export function ReversePromptHome({
     }
 
     if (customReverse) {
-      void runCustomReverse(trimmed, customPrompt.trim());
+      const focus = customPrompt.trim();
+      const parsed = parseGitHubRepoInput(trimmed);
+      if (parsed && typeof window !== "undefined") {
+        window.history.pushState(
+          null,
+          "",
+          focus
+            ? `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}/${encodeURIComponent(focus)}`
+            : `/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
+        );
+      }
+      void runCustomReverse(trimmed, focus);
     } else {
       void runReversePrompt(trimmed);
     }
