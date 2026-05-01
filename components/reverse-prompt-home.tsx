@@ -18,6 +18,27 @@ const RL_KEY_MANUAL = "gr_rl_manual";
 const DAILY_CUSTOM_LIMIT = 3;
 const SUBSCRIBER_EMAIL_KEY = "gr_subscriber_email";
 const PENDING_REDIRECT_KEY = "gr_pending_redirect";
+const CHECKOUT_NAVIGATION_STATE_KEY = "gr_checkout_navigation_state";
+
+type CheckoutNavigationState = "started" | "left";
+
+function setCheckoutNavigationState(state: CheckoutNavigationState): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(CHECKOUT_NAVIGATION_STATE_KEY, state);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function clearCheckoutNavigationState(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(CHECKOUT_NAVIGATION_STATE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 function savePendingRedirect(): void {
   if (typeof window === "undefined") return;
@@ -143,9 +164,13 @@ export function ReversePromptHome({
   isHome = false,
 }: ReversePromptHomeProps) {
   const router = useRouter();
+  const initialFocus =
+    autoSubmitDeep
+      ? ""
+      : (autoSubmitFocus?.trim() || initialManualFocus?.trim()) ?? "";
   const [repoUrl, setRepoUrl] = useState(initialRepoInput);
-  const [customReverse, setCustomReverse] = useState(false);
-  const [customPrompt, setCustomPrompt] = useState("");
+  const [customReverse, setCustomReverse] = useState(Boolean(initialFocus));
+  const [customPrompt, setCustomPrompt] = useState(initialFocus);
   /** Hides “Deep Reverse” after a custom or deep run (not needed for that result). */
   const [lastResultWasCustom, setLastResultWasCustom] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -223,6 +248,7 @@ export function ReversePromptHome({
           const data = (await res.json()) as { email?: string; error?: string };
           if (cancelled) return;
           if (res.ok && typeof data.email === "string" && data.email) {
+            clearCheckoutNavigationState();
             localStorage.setItem(SUBSCRIBER_EMAIL_KEY, data.email);
             setSubscriberEmail(data.email);
             setIsSubscriber(true);
@@ -836,6 +862,7 @@ export function ReversePromptHome({
                   );
                   const data = (await res.json()) as { email?: string };
                   if (res.ok && typeof data.email === "string" && data.email) {
+                    clearCheckoutNavigationState();
                     localStorage.setItem(SUBSCRIBER_EMAIL_KEY, data.email);
                     setSubscriberEmail(data.email);
                     setIsSubscriber(true);
@@ -1060,9 +1087,11 @@ export function ReversePromptHome({
                               if (!res.ok || !data.url) {
                                 throw new Error("checkout_unavailable");
                               }
+                              setCheckoutNavigationState("started");
                               window.location.href = data.url;
                             } catch {
                               if (PAYMENT_LINK) {
+                                setCheckoutNavigationState("started");
                                 window.location.href = PAYMENT_LINK;
                               }
                             }
