@@ -53,7 +53,7 @@ const checkoutNavigationRestoreScript = `
       return;
     }
     reloading = true;
-    clearState();
+    setState("returned");
     window.location.reload();
   }
 
